@@ -3,22 +3,46 @@ import copy
 import numpy as np
 
 class IA_Minimax:
-    def __init__(self, profondeur_max = 4):
+    """Minimax AI agent with Alpha-Beta pruning, transposition table, and bitboard evaluations.
+    
+    Attributes:
+        profondeur_max (int): Maximum depth limit for the iterative deepening minimax search.
+        noeuds_explores (int): Counter tracking nodes visited during search.
+        transpo (dict): Transposition table mapping board hash keys to precomputed search results.
+    """
 
+    def __init__(self, profondeur_max=4):
+        """Initialize the Minimax agent.
+        
+        Args:
+            profondeur_max (int): Max search depth limit (default 4).
+        """
         self.profondeur_max = profondeur_max
         self.noeuds_explores = 0
         self.transpo = {}
 
     def minimax(self, board, profondeur, alpha, beta, maximizingPlayer):
+        """Recursive alpha-beta minimax search with transposition tables and horizontal symmetry lookup.
+        
+        Args:
+            board (np.ndarray): Current 6x7 board state.
+            profondeur (int): Remaining search depth.
+            alpha (float): Lower bound for alpha-beta pruning.
+            beta (float): Upper bound for alpha-beta pruning.
+            maximizingPlayer (bool): True if maximizing node (player -1), False if minimizing (player 1).
+            
+        Returns:
+            tuple[int or None, float]: (best_column, evaluated_score).
+        """
         self.noeuds_explores += 1
 
         boardkey = board.tobytes()
-
         meilleur_coup_precedent = None
 
         if boardkey in self.transpo:
             meilleur_coup_precedent = self.transpo[boardkey]['col']
         
+        # Horizontal reflection check for symmetrical evaluation reuse
         board_miroir = np.fliplr(board) 
         key_miroir = board_miroir.tobytes()
 
@@ -28,7 +52,6 @@ class IA_Minimax:
                 if entry['col'] is not None:
                     valeur = entry['value']
                     col_miroir = entry['col']
-                    
                     largeur_grille = len(board[0])
                     best_col_reel = (largeur_grille - 1) - col_miroir
                 else:
@@ -36,35 +59,36 @@ class IA_Minimax:
                     best_col_reel = None
                 return best_col_reel, valeur
             
-        #1 Condition d'arret
+        # Stopping conditions
         coups_valides = self.coups_valides(board)
         est_fini = self.est_fini(board) 
 
-        if self.coups_gagnant(board, -1):                        # Joueur 2 a gagné
-            return (None, 1e10 + profondeur)                    # Valorise le jeu rapide
-        if self.coups_gagnant(board, 1):                        # Joueur 1 a gagné
-            return (None, -1e10 - profondeur)                   # Valorise le jeu lent
+        if self.coups_gagnant(board, -1):                        # Player 2 / AI won
+            return (None, 1e10 + profondeur)                    # Reward fast wins
+        if self.coups_gagnant(board, 1):                        # Player 1 won
+            return (None, -1e10 - profondeur)                   # Penalize fast losses
         
         if profondeur == 0 or est_fini:
-            if len(coups_valides) == 0:                         # Match nul
+            if len(coups_valides) == 0:                         # Tie game
                 return (None, 0)
             else:
-                return (None, self.score_position(board, -1))    # L'heuristique
+                return (None, self.score_position(board, -1))   # Heuristic evaluation
 
         best_col = None
 
         def ordre_de_tri(colonne):
+            """Move-ordering heuristic prioritizing previously best moves and central columns."""
             if colonne == meilleur_coup_precedent:
                 return -1000
-            return abs(colonne-centre)
+            return abs(colonne - centre)
          
-        # Branche Max
+        centre = len(board[0]) // 2
+
+        # Maximizing branch (Player -1)
         if maximizingPlayer:
             valeur = -math.inf
             best_col = np.random.choice(coups_valides)
 
-            #Optim : Ordonne les coups pour regarder le centre en premier
-            centre = len(board[0]) //2
             coups_valides.sort(key=ordre_de_tri)
 
             for col in coups_valides:
@@ -76,15 +100,13 @@ class IA_Minimax:
                     best_col = col
                 alpha = max(alpha, valeur)
                 if alpha >= beta:
-                    break   # Elagage beta
+                    break   # Beta cutoff
         
         else:
-            # Branche Min
+            # Minimizing branch (Player 1)
             valeur = math.inf
             best_col = np.random.choice(coups_valides)
 
-            #Optim : Ordonne les coups pour regarder le centre en premier
-            centre = len(board[0]) //2
             coups_valides.sort(key=ordre_de_tri)
             for col in coups_valides:
                 b_copy = board.copy()
@@ -95,96 +117,141 @@ class IA_Minimax:
                     best_col = col
                 beta = min(beta, valeur)
                 if alpha >= beta:
-                    break
-        self.transpo[boardkey] = {'depth' : profondeur, 'value' : valeur, 'col': best_col}
+                    break   # Alpha cutoff
+
+        self.transpo[boardkey] = {'depth': profondeur, 'value': valeur, 'col': best_col}
         return best_col, valeur
 
-
-    def coups_valides(self,board):
-        # Retourne les coups valides
-        return [c for c in range(len(board[0])) if board[0,c] == 0]
-
+    def coups_valides(self, board):
+        """Return indices of columns that have at least one empty cell.
+        
+        Args:
+            board (np.ndarray): Current board state.
+            
+        Returns:
+            list[int]: Playable column indices.
+        """
+        return [c for c in range(len(board[0])) if board[0, c] == 0]
 
     def select_action(self, board, col, player):
-        # Place le jeton dans la colonne
-        for r in range(len(board)-1, -1, -1):
+        """Drop a piece into the specified column in place.
+        
+        Args:
+            board (np.ndarray): Board array to update.
+            col (int): Target column index.
+            player (int): Token ID (1 or -1).
+        """
+        for r in range(len(board) - 1, -1, -1):
             if board[r, col] == 0:
-                board[r,col] = player
+                board[r, col] = player
                 break
-    
 
     def coups_gagnant(self, board, joueur):
-        #Bitboard creation
+        """Fast win check using bitboard bitwise shift operations.
+        
+        Args:
+            board (np.ndarray): Current board state.
+            joueur (int): Player ID to check (1 or -1).
+            
+        Returns:
+            bool: True if player has aligned 4 tokens, False otherwise.
+        """
         bitboard = 0
         for c in range(7):
             for r in range(6):
                 if board[r, c] == joueur:
-                    bitboard |= (1 << (c*7 + (5-r)))
+                    bitboard |= (1 << (c * 7 + (5 - r)))
         
-        #verif
+        # Vertical alignment (1 bit shift)
         m = bitboard & (bitboard >> 1)
-        if m & (m >> 2): return True
+        if m & (m >> 2):
+            return True
 
-        # Décalage horizontal (7 bits)
+        # Horizontal alignment (7 bits shift)
         m = bitboard & (bitboard >> 7)
-        if m & (m >> 14): return True
+        if m & (m >> 14):
+            return True
 
-        # Diagonale 1 (6 bits)
+        # Diagonal 1 (\ direction: 6 bits shift)
         m = bitboard & (bitboard >> 6)
-        if m & (m >> 12): return True
+        if m & (m >> 12):
+            return True
 
-        # Diagonale 2 (8 bits)
+        # Diagonal 2 (/ direction: 8 bits shift)
         m = bitboard & (bitboard >> 8)
-        if m & (m >> 16): return True
+        if m & (m >> 16):
+            return True
 
         return False
 
     def est_fini(self, board):
-        # Vérifie si la partie est finie
+        """Check if the game has ended by victory or board saturation.
+        
+        Args:
+            board (np.ndarray): Current board state.
+            
+        Returns:
+            bool: True if terminal, False otherwise.
+        """
         return self.coups_gagnant(board, 1) or self.coups_gagnant(board, -1) or len(self.coups_valides(board)) == 0
-
     
     def score_position(self, board, joueur):
+        """Calculate heuristic evaluation score for a board position.
+        
+        Args:
+            board (np.ndarray): Board array to evaluate.
+            joueur (int): Target player to evaluate for.
+            
+        Returns:
+            int: Positional heuristic score.
+        """
         score = 0
-        # Heuristique pour connaitre la valeur d'une position
         lignes = len(board)
         cols = len(board[0])
-        joueur_adv = 1 if joueur == -1 else -1 # L'adversaire
+        joueur_adv = 1 if joueur == -1 else -1
 
-        # --- 1. Bonus pour la colonne centrale (Stratégie) ---
-        # Le centre est crucial au Puissance 4 car il ouvre plus de possibilités
-        centre_array = [int(i) for i in list(board[:, cols//2])]
+        # Central column control bonus
+        centre_array = [int(i) for i in list(board[:, cols // 2])]
         centre_count = centre_array.count(joueur)
         score += centre_count * 3
 
-
-        # Lignes
+        # Horizontal window evaluations
         for c in range(cols - 3):
             for r in range(lignes):
-                fenetre = [board[r, c+i] for i in range(4)]
+                fenetre = [board[r, c + i] for i in range(4)]
                 score += self.evaluer_fenetre(fenetre, joueur, joueur_adv)
         
-        # Colonnes
+        # Vertical window evaluations
         for c in range(cols):
             for r in range(lignes - 3):
-                fenetre = [board[r+i, c] for i in range(4)]
+                fenetre = [board[r + i, c] for i in range(4)]
                 score += self.evaluer_fenetre(fenetre, joueur, joueur_adv)
         
-        # Diagonales du haut vers le bas
+        # Diagonal (down-right) evaluations
         for c in range(cols - 3):
             for r in range(lignes - 3):
-                fenetre = [board[r+i, c+i] for i in range(4)]
+                fenetre = [board[r + i, c + i] for i in range(4)]
                 score += self.evaluer_fenetre(fenetre, joueur, joueur_adv)
         
-        # Diagonales du bas vers le haut
+        # Diagonal (up-right) evaluations
         for c in range(cols - 3):
             for r in range(3, lignes):
-                fenetre = [board[r-i, c+i] for i in range(4)]
+                fenetre = [board[r - i, c + i] for i in range(4)]
                 score += self.evaluer_fenetre(fenetre, joueur, joueur_adv)
         
         return score
     
     def evaluer_fenetre(self, fenetre, joueur, adversaire): 
+        """Score a 4-cell sliding window based on player and opponent tokens.
+        
+        Args:
+            fenetre (list[int]): 4 board values in a line.
+            joueur (int): Target player ID.
+            adversaire (int): Opponent player ID.
+            
+        Returns:
+            int: Window score contribution.
+        """
         score = 0
         if fenetre.count(joueur) == 4:
             score += 10000
@@ -199,21 +266,23 @@ class IA_Minimax:
         
         return score
     
-    def choisir_coup(self,board):
+    def choisir_coup(self, board):
+        """Execute iterative deepening minimax search to select the best action.
+        
+        Args:
+            board (np.ndarray): Current game board.
+            
+        Returns:
+            int: Best column chosen by the Minimax algorithm.
+        """
         self.noeuds_explores = 0
         meilleur_coup = None
 
-        for prof_actuelle in range(1, self.profondeur_max+1):
+        for prof_actuelle in range(1, self.profondeur_max + 1):
             col, score = self.minimax(board, prof_actuelle, -math.inf, math.inf, True)
-
             meilleur_coup = col
 
-            if score > 9e9 :
+            if score > 9e9:  # Winning move found, stop early
                 break
 
-        # print(f'Noeuds explorés par Minimax : {self.noeuds_explores}')
         return meilleur_coup
-                
-        
-
-            

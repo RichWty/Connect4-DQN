@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.gitignore
+
+# Environnements virtuels
+venv/
+env/
+.env
+
+# Modèles PyTorch (fichiers lourds)
+checkpoints/
+won_against_minimax/
+*.pth
+*.pt
+
+# Logs et résultats d'évaluation
+runs/
+evaluations/
+*.log
+*.csv
+
+# Fichiers macOS
+.DS_Store
+
+# Fichiers IDE
+.vscode/
+.idea/
+*.code-workspace

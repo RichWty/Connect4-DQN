@@ -8,15 +8,29 @@ Created on Sun Nov 17 23:41:05 2024
 import numpy as np
 
 class P4Env:
-    #Le jeu de puissance 4
+    """Connect 4 (Puissance 4) game environment following RL conventions.
+    
+    Attributes:
+        lignes (int): Number of rows in the grid (default 6).
+        cols (int): Number of columns in the grid (default 7).
+        board (np.ndarray): 2D numpy array representing the board state (0: empty, 1: player 1, -1: player 2).
+        fini (bool): Flag indicating if the current game has concluded.
+        gagnant (int or None): Winning player (1 or -1), or None if game is ongoing/tied.
+        incr (int): Move counter since game start.
+    """
+
     def __init__(self):
-        #Initialisation du jeu
+        """Initialize the game environment dimensions and reset the board state."""
         self.lignes = 6
         self.cols = 7
         self.reset()
 
     def reset(self):
-        # Reinitialise le jeu
+        """Reset the game board and state variables to start a new match.
+        
+        Returns:
+            np.ndarray: Initial empty board of shape (6, 7).
+        """
         self.board = np.zeros((6, 7))
         self.fini = False
         self.gagnant = None
@@ -24,37 +38,48 @@ class P4Env:
         return self.board
     
     def coups_valides(self):
-        # Retourne les coups valides
-        return [c for c in range(self.cols) if self.board[0,c] == 0]
+        """Return a list of playable column indices.
+        
+        A column is valid if its top row cell is currently unoccupied (0).
+        
+        Returns:
+            list[int]: Column indices (0 to 6) where a token can be legally dropped.
+        """
+        return [c for c in range(self.cols) if self.board[0, c] == 0]
     
-    def step(self,col,joueur):
+    def step(self, col, joueur):
+        """Apply a move for the specified player into the chosen column.
+        
+        Args:
+            col (int): Column index to drop the token into (0-6).
+            joueur (int): The current player's token ID (1 or -1).
+            
+        Returns:
+            tuple: (board, reward, done, info)
+                board (np.ndarray): The updated game board.
+                reward (float): Immediate reward (+10 for victory, 0 for ongoing/tie, -1000 for invalid move).
+                done (bool): Whether the game has ended.
+                info (dict): Metadata including status message and played row.
         """
-        Arguments :
-            col     :   colonne à jouer
-            joueur  :   1 ou -1 
-        Retourne :
-            board, reward, done
-        """
-
-        # Valididté
+        # Validity check
         if col not in self.coups_valides():
             return self.board, -1000, True, {"status": "Invalid Move", 'row': None}
         
-        # Place le jeton
+        # Drop the token to the lowest unoccupied row
         row_played = -1
-        for r in range(self.lignes-1, -1, -1):
+        for r in range(self.lignes - 1, -1, -1):
             if self.board[r, col] == 0:
-                self.board[r,col] = joueur
+                self.board[r, col] = joueur
                 row_played = r
                 break
         
         self.incr += 1
         info = {
-            "status"   :    "Continue",
-            "row"      :    row_played
+            "status": "Continue",
+            "row": row_played
         }
 
-        # Vérifie victoire ou match nul
+        # Check win or draw conditions
         if self.verif(joueur):
             self.fini = True
             self.gagnant = joueur
@@ -65,40 +90,48 @@ class P4Env:
             self.fini = True
             info['status'] = ('Egalité', None)
             return self.board, 0, True, info
-        # Partie continue
+
+        # Game continues
         return self.board, 0, False, info
 
     def verif(self, joueur):
-        #Fonction pour vérifier si un joueur a gagné
-        # lignes
+        """Check if the specified player has aligned 4 tokens.
+        
+        Evaluates horizontal, vertical, and both diagonal directions.
+        
+        Args:
+            joueur (int): Player ID to check (1 or -1).
+            
+        Returns:
+            bool: True if the player has aligned 4 tokens, False otherwise.
+        """
+        # Horizontal lines
         for c in range(self.cols - 3):
             for r in range(self.lignes):
                 if self.board[r, c] == self.board[r, c + 1] == self.board[r, c + 2] == self.board[r, c + 3] == joueur:
                     return True
             
-        # colonnes
+        # Vertical columns
         for c in range(self.cols):
             for r in range(self.lignes - 3):
                 if self.board[r, c] == self.board[r + 1, c] == self.board[r + 2, c] == self.board[r + 3, c] == joueur:
                     return True
         
-        # les diagonales sont vérifiées de la gauche vers la droite
-        # diagonales du haut vers le bas
+        # Diagonals (top-left to bottom-right)
         for c in range(self.cols - 3):
             for r in range(self.lignes - 3):
-                if self.board[r,c] == self.board[r+1,c+1] == self.board[r+2,c+2] == self.board[r+3,c+3] == joueur:
+                if self.board[r, c] == self.board[r + 1, c + 1] == self.board[r + 2, c + 2] == self.board[r + 3, c + 3] == joueur:
                     return True
 
-        # les diagonales sont vérifiées de la droite vers la gauche
-        # diagonales du haut vers le bas
+        # Diagonals (bottom-left to top-right)
         for c in range(self.cols - 3):
             for r in range(3, self.lignes):
-                if self.board[r,c] == self.board[r-1,c+1] == self.board[r-2,c+2] == self.board[r-3,c+3] == joueur:
+                if self.board[r, c] == self.board[r - 1, c + 1] == self.board[r - 2, c + 2] == self.board[r - 3, c + 3] == joueur:
                     return True
         
         return False
 
     def display(self):
-        # Fonction optionnelle pour afficher le plateau
+        """Print the current board configuration to the standard output."""
         print(self.board)
-        print('-'*20)
+        print('-' * 20)
