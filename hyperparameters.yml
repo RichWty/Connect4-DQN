@@ -1,0 +1,11 @@
+puissance4:
+  env_id: Puissance4
+  replay_memory_size: 100000
+  batch_size: 100
+  epsilon_start: 1.0
+  epsilon_decay: .999995
+  epsilon_min: 0.0
+  learning_rate: 0.0001
+  network_update_freq: 100
+  discount_factor_g: 0.99
+
